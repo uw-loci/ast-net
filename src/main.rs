@@ -1,15 +1,15 @@
+mod model;
+
 use burn::prelude::*;
 use burn::backend::Wgpu;
 
-type Backend = Wgpu;
+use crate::model::ModelConfig;
+
+type Backend = Wgpu<f32, i32>;
 
 fn main() {
     let device = Default::default();
-    // create two tensors,
-    // "a": from an array
-    // "b": full of ones
-    let tensor_a = Tensor::<Backend, 2>::from_data([[2., 3.], [4., 5.]], &device);
-    let tensor_b = Tensor::<Backend, 2>::ones_like(&tensor_a);
+    let model = ModelConfig::new(10, 512).init::<Backend>(&device);
 
-    println!("[INFO] result: {}", tensor_a + tensor_b);
+    println!("[DEBUG] model info: {}", model);
 }
