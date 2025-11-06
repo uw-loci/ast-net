@@ -8,4 +8,4 @@ license = "Unlicense"
 readme = "README.md"
 
 [dependencies]
-burn = { version = "0.19.1", features = ["wgpu"] }
+burn = { version = "0.19.1", features = ["fusion", "std", "tui", "train", "vision", "wgpu"], default-features = false}
