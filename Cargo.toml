@@ -1,0 +1,11 @@
+[package]
+name = "ast-net"
+description = "Antimicrobial Susceptibility Testing Network (AST-Net)"
+version = "0.1.0"
+authors = ["Edward Evans"]
+edition = "2024"
+license = "Unlicense"
+readme = "README.md"
+
+[dependencies]
+burn = { version = "0.19.1", features = ["wgpu"] }
