@@ -215,7 +215,7 @@ impl<B: Backend> Model<B> {
     }
 
     #[allow(clippy::let_and_return, clippy::approx_constant)]
-    pub fn forward(&self, input1: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>) {
+    pub fn forward(&self, input1: Tensor<B, 1>) -> (Tensor<B, 4>, Tensor<B, 4>) {
         let reshape1_out1 = input1.reshape([1, 1, 512, 512]);
         let conv2d1_out1 = self.conv2d1.forward(reshape1_out1);
         let relu1_out1 = burn::tensor::activation::relu(conv2d1_out1);
