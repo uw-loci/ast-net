@@ -38,7 +38,7 @@ ij = imagej.init(mode = "interactive")
 
 # load the data and convert it to float32
 # the data MUST be 512x512
-data = ij.io().open("/home/edward/Downloads/stardist_test_data.tif")
+data = ij.io().open("/path/to/stardist_test_data.tif")
 narr = ij.py.to_xarray(data).data
 narr = narr.astype(np.float32)
 
