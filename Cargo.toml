@@ -7,6 +7,13 @@ edition = "2024"
 license = "Unlicense"
 readme = "README.md"
 
+[lib]
+name = "ast_net"
+crate-type = ["cdylib"]
+
 [dependencies]
 burn = { version = "0.19.1", features = ["fusion", "std", "tui", "train", "vision", "wgpu"], default-features = false}
 burn-ndarray = "0.19.1"
+pyo3 = { version = "0.27.1", features = ["extension-module"] }
+numpy = "0.27.0"
+ndarray = "0.16.1"
