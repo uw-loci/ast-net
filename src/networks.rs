@@ -1,7 +1,8 @@
 use burn::backend::Wgpu;
 use burn::prelude::*;
-use ndarray::{Array2, ArrayView2};
-use numpy::{IntoPyArray, PyArray2, PyReadonlyArray2}; use pyo3::prelude::*;
+use ndarray::{Array2, Array3, ArrayView2};
+use numpy::{IntoPyArray, PyArray2, PyArray3, PyReadonlyArray2};
+use pyo3::prelude::*;
 
 use crate::models::stardist::Model;
 
@@ -25,19 +26,21 @@ pub fn register_stardist_module(parent_module: &Bound<'_, PyModule>) -> PyResult
     parent_module.add_submodule(&stardist_module)
 }
 
-/// run StarDist2D on a (512, 512) image.
+/// Run StarDist2D on an image.
 #[pyfunction]
 #[pyo3(name = "stardist_2d")]
 pub fn py_stardist_2d<'py>(
     py: Python<'py>,
     data: PyReadonlyArray2<f32>,
-) -> Bound<'py, PyArray2<f32>> {
-    run_stardist_2d(data.as_array()).into_pyarray(py)
+) -> (Bound<'py, PyArray2<f32>>, Bound<'py, PyArray3<f32>>) {
+    let (arr_a, arr_b) = run_stardist_2d(data.as_array());
+
+    (arr_a.into_pyarray(py), arr_b.into_pyarray(py))
 }
 
-/// actually run it lol
+/// StarDist2D
 #[inline]
-fn run_stardist_2d(data: ArrayView2<f32>) -> Array2<f32> {
+fn run_stardist_2d(data: ArrayView2<f32>) -> (Array2<f32>, Array3<f32>) {
     // setup the model
     let device = Default::default();
     let stardist_model = Model::<Backend>::default();
@@ -47,7 +50,11 @@ fn run_stardist_2d(data: ArrayView2<f32>) -> Array2<f32> {
         data.into_owned().into_flat().as_slice().unwrap(),
         &device,
     );
-    let (a, _b) = stardist_model.forward(tensor);
-    let d: Vec<f32> = a.into_data().into_vec().unwrap();
-    Array2::from_shape_vec((512, 512), d).expect("Data reshape failed.")
+    let (a, b) = stardist_model.forward(tensor);
+    let result_a: Vec<f32> = a.into_data().into_vec().unwrap();
+    let result_b: Vec<f32> = b.into_data().into_vec().unwrap();
+    let arr_a = Array2::from_shape_vec((256, 256), result_a).expect("Tensor data reshape failed.");
+    let arr_b = Array3::from_shape_vec((256, 256, 32), result_b).expect("Tensor data reshape failed.");
+
+    (arr_a, arr_b)
 }
