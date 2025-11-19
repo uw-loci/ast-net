@@ -24,6 +24,8 @@ This will create the environment for you with maturin. Next install Rust library
 $ maturin develop --release
 ```
 
+_Note: This project also depends on development version of [imgal](https://github.com/imgal-sc/imgal) built from source._
+
 ## Example
 
 You can run the following stardist example:

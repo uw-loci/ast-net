@@ -2,6 +2,8 @@ use std::ffi::CString;
 
 use burn::backend::Wgpu;
 use burn::prelude::*;
+use imgal::image::percentile_normalize;
+use imgal::traits::numeric::AsNumeric;
 use ndarray::{Array2, Array3, ArrayView2};
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -34,23 +36,47 @@ pub fn register_stardist_module(parent_module: &Bound<'_, PyModule>) -> PyResult
 #[pyo3(name = "stardist_2d")]
 pub fn py_stardist_2d<'py>(
     py: Python<'py>,
-    data: PyReadonlyArray2<f32>,
-) -> (Bound<'py, PyArray2<f32>>, Bound<'py, PyArray3<f32>>) {
-    let (arr_a, arr_b) = run_stardist_2d(data.as_array());
-
-    (arr_a.into_pyarray(py), arr_b.into_pyarray(py))
+    data: Bound<'py, PyAny>,
+) -> PyResult<(Bound<'py, PyArray2<f32>>, Bound<'py, PyArray3<f32>>)> {
+    if let Ok(arr) = data.extract::<PyReadonlyArray2<u8>>() {
+        let (prob_arr, dist_arr) = run_stardist_2d(arr.as_array());
+        return Ok((prob_arr.into_pyarray(py), dist_arr.into_pyarray(py)));
+    } else if let Ok(arr) = data.extract::<PyReadonlyArray2<u16>>() {
+        let (prob_arr, dist_arr) = run_stardist_2d(arr.as_array());
+        return Ok((prob_arr.into_pyarray(py), dist_arr.into_pyarray(py)));
+    } else if let Ok(arr) = data.extract::<PyReadonlyArray2<u64>>() {
+        let (prob_arr, dist_arr) = run_stardist_2d(arr.as_array());
+        return Ok((prob_arr.into_pyarray(py), dist_arr.into_pyarray(py)));
+    } else if let Ok(arr) = data.extract::<PyReadonlyArray2<f32>>() {
+        let (prob_arr, dist_arr) = run_stardist_2d(arr.as_array());
+        return Ok((prob_arr.into_pyarray(py), dist_arr.into_pyarray(py)));
+    } else if let Ok(arr) = data.extract::<PyReadonlyArray2<f64>>() {
+        let (prob_arr, dist_arr) = run_stardist_2d(arr.as_array());
+        return Ok((prob_arr.into_pyarray(py), dist_arr.into_pyarray(py)));
+    } else {
+        return Err(PyErr::new::<PyTypeError, _>(
+            "Unsupported array dtype, supported array dtypes are u8, u16, u64, f32, and f64."
+        ))
+    }
 }
 
 /// StarDist2D
 #[inline]
-fn run_stardist_2d(data: ArrayView2<f32>) -> (Array2<f32>, Array3<f32>) {
+fn run_stardist_2d<T>(data: ArrayView2<T>) -> (Array2<f32>, Array3<f32>)
+where
+    T: AsNumeric,
+{
     // setup the model
     let device = Default::default();
     let stardist_model = Model::<Backend>::default();
 
     // create tenor from input array
+    // normalize the data...maybe expose as adjustable parameter?
+    let norm_data = percentile_normalize(data, 1.0, 99.8, None, None);
+    let norm_data = norm_data.mapv(|v| v as f32);
+    // todo: convert to f32
     let tensor = Tensor::<Backend, 1>::from_floats(
-        data.into_owned().into_flat().as_slice().unwrap(),
+        norm_data.into_flat().as_slice().unwrap(),
         &device,
     );
     let (a, b) = stardist_model.forward(tensor);
