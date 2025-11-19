@@ -75,16 +75,18 @@ where
     // normalize the data...maybe expose as adjustable parameter?
     let norm_data = percentile_normalize(data, 1.0, 99.8, None, None);
     let norm_data = norm_data.mapv(|v| v as f32);
-    // todo: convert to f32
     let tensor = Tensor::<Backend, 1>::from_floats(
         norm_data.into_flat().as_slice().unwrap(),
         &device,
     );
-    let (a, b) = stardist_model.forward(tensor);
+    let (row, col) = data.dim();
+    let (a, b) = stardist_model.forward(tensor, (row as i32, col as i32));
     let result_a: Vec<f32> = a.into_data().into_vec().unwrap();
     let result_b: Vec<f32> = b.into_data().into_vec().unwrap();
-    let arr_a = Array2::from_shape_vec((256, 256), result_a).expect("Tensor data reshape failed.");
-    let arr_b = Array3::from_shape_vec((256, 256, 32), result_b).expect("Tensor data reshape failed.");
+    let row: usize = row / 2;
+    let col: usize = col / 2;
+    let arr_a = Array2::from_shape_vec((row, col), result_a).expect("Tensor data reshape failed.");
+    let arr_b = Array3::from_shape_vec((row, col, 32), result_b).expect("Tensor data reshape failed.");
 
     (arr_a, arr_b)
 }
