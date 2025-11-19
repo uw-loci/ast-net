@@ -6,6 +6,7 @@ use imgal::image::percentile_normalize;
 use imgal::traits::numeric::AsNumeric;
 use ndarray::{Array2, Array3, ArrayView2};
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyReadonlyArray2};
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
 use crate::models::stardist::Model;
