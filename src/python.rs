@@ -26,6 +26,7 @@ fn phasor_batch_segment_gs<'py>(
     py: Python<'py>,
     batch_data: Vec<Bound<'py, PyAny>>,
     calibration_data: Bound<'py, PyAny>,
+    calibration_tau: f64,
     period: f64,
 ) -> PyResult<Vec<HashMap<u64, Py<PyArray2<f64>>>>> {
     // TODO use PyReadonlyArray3<u16> as input?
@@ -35,7 +36,7 @@ fn phasor_batch_segment_gs<'py>(
             .map(|v| v.extract::<PyReadonlyArray3<u16>>().map_err(PyErr::from))
             .collect::<PyResult<Vec<_>>>()?;
         let views: Vec<ArrayView3<u16>> = batch_data.iter().map(|v| v.as_array()).collect();
-        batch_segment_gs(&views, arr_cal.as_array(), period)
+        batch_segment_gs(&views, arr_cal.as_array(), calibration_tau, period)
             .map(|output| {
                 output
                     .into_iter()
