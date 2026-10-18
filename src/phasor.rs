@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use cellcast::models::StarDist2D;
 use imgal::parameter::omega;
-use imgal::phasor::calibration::{calibrate_gs_image_mut, modulation_and_phase};
-use imgal::phasor::time_domain::gs_roi;
+use imgal::phasor::calibration::{calibrate_gs_roi_mut, modulation_and_phase};
+use imgal::phasor::time_domain::{gs_image, gs_roi};
 use imgal::prelude::*;
 use imgal::spatial::roi::roi_cloud_map;
 use imgal::threshold::global::otsu_mask;
 use imgal::transform::project::sum_project;
-use ndarray::{Array2, ArrayView3, Axis};
+use ndarray::{Array2, ArrayView3, ArrayViewMut2, Axis, s};
 
 /// Batch process a set of FLIM data.
 ///
@@ -32,6 +32,7 @@ pub fn batch_segment_gs(
     calibration_data: ArrayView3<u16>,
     calibration_tau: f64,
     period: f64,
+    // axis: Option<usize>,
 ) -> Result<Vec<HashMap<u64, Array2<f64>>>, ImgalError> {
     // TODO expose `axis` param
     // calculate batch per roi G/S values
@@ -39,7 +40,7 @@ pub fn batch_segment_gs(
     let batch_labels: Vec<Array2<u64>> = batch_data
         .iter()
         .map(|&v| {
-            let arr_sum = sum_project(v, Some(2), Some(1)).unwrap();
+            let arr_sum = sum_project(v, Some(0), Some(1)).unwrap();
             sd.predict_fluo(&arr_sum, None, None, None, None).unwrap()
         })
         .collect();
@@ -50,13 +51,15 @@ pub fn batch_segment_gs(
     let mut batch_roi_gs: Vec<HashMap<u64, Array2<f64>>> = batch_data
         .iter()
         .zip(batch_roi_clouds.iter())
-        .map(|(d, c)| gs_roi(d, period, c, None, None, Some(1)).unwrap())
+        .map(|(d, c)| gs_roi(d, period, c, None, Some(0), Some(1)).unwrap())
         .collect();
+    let cal_gs = gs_image(calibration_data, period, None, None, Some(0), None).unwrap();
     let mod_phs = calibration_to_mod_phs(calibration_data, calibration_tau, period);
-    // TODO the code doesn't work yet, I need to write `calibrate_gs_roi_mut` in imgal
-    // batch_roi_gs.iter().for_each(|v| {
-    //     v.iter().for_each(|(_, v)| calibrate_gs_roi_mut(v.view_mut(), mod_phs.0, mod_phs.1, Some(Axis(2)), Some(1)))
-    // });
+    batch_roi_gs.iter_mut().for_each(|v| {
+        let mut view_map: HashMap<u64, ArrayViewMut2<f64>> =
+            v.iter_mut().map(|(&k, v)| (k, v.view_mut())).collect();
+        calibrate_gs_roi_mut(&mut view_map, mod_phs.0, mod_phs.1, Some(1))
+    });
     Ok(batch_roi_gs)
 }
 
@@ -66,11 +69,11 @@ fn calibration_to_mod_phs(
     calibration_tau: f64,
     period: f64,
 ) -> (f64, f64) {
-    let arr_sum = sum_project(calibration_data, Some(2), Some(1)).unwrap();
+    let arr_sum = sum_project(calibration_data, Some(0), Some(1)).unwrap();
     let mask = otsu_mask(&arr_sum, None, Some(1)).unwrap();
     let mask = mask.mapv(|v| v as u64);
     let rcm = roi_cloud_map(&mask, Some(1));
-    let cal_gs = gs_roi(calibration_data, period, &rcm, None, Some(2), Some(1)).unwrap();
+    let cal_gs = gs_roi(calibration_data, period, &rcm, None, Some(0), Some(1)).unwrap();
     let cal_gs = cal_gs.get(&1).unwrap();
     let mean_gs = cal_gs
         .mean_axis(Axis(0))
