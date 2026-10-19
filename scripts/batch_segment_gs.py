@@ -7,7 +7,7 @@ import ast_net.phasor as phr
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Colormap, LinearSegmentedColormap, Normalize
+from matplotlib.colors import Colormap, LinearSegmentedColormap, Normalize, to_rgba
 from tifffile import imread
 
 
@@ -103,11 +103,20 @@ def plot_batch_gs(
     names: Sequence[str],
     lifetime_points: Optional[Mapping[str, Tuple[float, float]]] = None,
     cmap: Union[str, Colormap, None] = None,
+    point_alpha: float = 0.15,
+    point_size: float = 4.0,
+    max_points_per_series: Optional[int] = 5000,
+    seed: int = 0,
 ) -> None:
     """Plot per-series G/S data twice, colored by each name's trailing index.
 
-    Left: full point clouds plus centroids. Right: centroids only.
+    Left: point clouds plus centroids. Right: centroids only.
     `cmap` may be a matplotlib colormap or its name. Defaults to red -> blue.
+
+    To keep overlapping clouds readable, all points from all series are pooled
+    and drawn in random order (so no series sits on top of the others), and each
+    series is optionally subsampled to `max_points_per_series` points for
+    display. Centroids are always computed from the full data.
     """
     if len(res) != len(names):
         raise ValueError(
@@ -130,6 +139,9 @@ def plot_batch_gs(
     norm = Normalize(vmin=min(valid), vmax=max(valid)) if valid else Normalize(0, 1)
 
     any_points = False
+    rng = np.random.default_rng(seed)
+    cloud_xy: List[np.ndarray] = []
+    cloud_rgba: List[np.ndarray] = []
 
     for idx, (series_name, roi_map) in enumerate(zip(names, res)):
         points = _stack_result_points(roi_map)
@@ -140,15 +152,12 @@ def plot_batch_gs(
         num = indices[idx]
         color = cmap(norm(num)) if num is not None else "gray"
 
-        ax_all.scatter(
-            points[:, 0],
-            points[:, 1],
-            s=6,
-            alpha=0.35,
-            color=color,
-            edgecolor="black",
-            linewidths=0,
-        )
+        shown = points
+        if max_points_per_series is not None and len(points) > max_points_per_series:
+            keep = rng.choice(len(points), max_points_per_series, replace=False)
+            shown = points[keep]
+        cloud_xy.append(shown)
+        cloud_rgba.append(np.tile(to_rgba(color), (len(shown), 1)))
 
         centroid = points.mean(axis=0)
         for ax in (ax_all, ax_cent):
@@ -160,10 +169,25 @@ def plot_batch_gs(
                 color=color,
                 edgecolor="black",
                 linewidth=0.8,
+                zorder=3,
             )
 
     if not any_points:
         raise ValueError("No plottable G/S points found in `res`.")
+
+    # Draw all points in shuffled order so overlap isn't dominated by the last series.
+    xy = np.vstack(cloud_xy)
+    rgba = np.vstack(cloud_rgba)
+    order = rng.permutation(len(xy))
+    ax_all.scatter(
+        xy[order, 0],
+        xy[order, 1],
+        s=point_size,
+        c=rgba[order],
+        alpha=point_alpha,
+        linewidths=0,
+        rasterized=True,
+    )
 
     # Give the centroid plot the same view as the full plot for easy comparison.
     ax_cent.set_xlim(ax_all.get_xlim())
