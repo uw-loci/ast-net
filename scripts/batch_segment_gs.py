@@ -106,6 +106,7 @@ def plot_batch_gs(
     point_alpha: float = 0.15,
     point_size: float = 4.0,
     max_points_per_series: Optional[int] = 5000,
+    label_centroids: bool = False,
     seed: int = 0,
 ) -> None:
     """Plot per-series G/S data twice, colored by each name's trailing index.
@@ -117,6 +118,9 @@ def plot_batch_gs(
     and drawn in random order (so no series sits on top of the others), and each
     series is optionally subsampled to `max_points_per_series` points for
     display. Centroids are always computed from the full data.
+
+    If `label_centroids` is True, each centroid in the right-hand (centroid-only)
+    plot is annotated with its series name.
     """
     if len(res) != len(names):
         raise ValueError(
@@ -165,11 +169,22 @@ def plot_batch_gs(
                 centroid[0],
                 centroid[1],
                 s=80,
-                marker="X",
+                marker="o",
                 color=color,
                 edgecolor="black",
                 linewidth=0.8,
                 zorder=3,
+            )
+
+        # Series label next to the centroid, centroid pane only.
+        if label_centroids:
+            ax_cent.annotate(
+                series_name,
+                (centroid[0], centroid[1]),
+                xytext=(5, 5),
+                textcoords="offset points",
+                fontsize=6,
+                zorder=4,
             )
 
     if not any_points:
@@ -211,4 +226,4 @@ if __name__ == "__main__":
     cal_data_path = "/home/edward/Documents/workspaces/research/projects/ast/data/20260507_live_elr_flim/tif/chroma/chroma_740ex_457-50em_0000.tif"
     arrays, names = load_tif_dir(batch_data_path)
     res = phr.batch_segment_gs(arrays, imread(cal_data_path), 1.1, 12.5)
-    plot_batch_gs(res, names)
+    plot_batch_gs(res, names, label_centroids=False)
