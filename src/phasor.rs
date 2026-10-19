@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use cellcast::models::StarDist2D;
 use imgal::parameter::omega;
 use imgal::phasor::calibration::{calibrate_gs_roi_mut, modulation_and_phase};
-use imgal::phasor::time_domain::{gs_image, gs_roi};
+use imgal::phasor::time_domain::gs_roi;
 use imgal::prelude::*;
 use imgal::spatial::roi::roi_cloud_map;
 use imgal::threshold::global::otsu_mask;
 use imgal::transform::project::sum_project;
-use ndarray::{Array2, ArrayView3, ArrayViewMut2, Axis, s};
+use ndarray::{Array2, ArrayView3, ArrayViewMut2, Axis};
 
 /// Batch process a set of FLIM data.
 ///
@@ -53,13 +53,13 @@ pub fn batch_segment_gs(
         .zip(batch_roi_clouds.iter())
         .map(|(d, c)| gs_roi(d, period, c, None, Some(0), Some(1)).unwrap())
         .collect();
-    let cal_gs = gs_image(calibration_data, period, None, None, Some(0), None).unwrap();
     let mod_phs = calibration_to_mod_phs(calibration_data, calibration_tau, period);
     batch_roi_gs.iter_mut().for_each(|v| {
         let mut view_map: HashMap<u64, ArrayViewMut2<f64>> =
             v.iter_mut().map(|(&k, v)| (k, v.view_mut())).collect();
         calibrate_gs_roi_mut(&mut view_map, mod_phs.0, mod_phs.1, Some(1))
     });
+    dbg!(batch_roi_gs.len());
     Ok(batch_roi_gs)
 }
 
