@@ -1,10 +1,13 @@
+import re
 from math import cos, pi, sin
 from pathlib import Path
-from typing import List, Mapping, Optional, Sequence, Tuple
+from typing import List, Mapping, Optional, Sequence, Tuple, Union
 
 import ast_net.phasor as phr
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Colormap, LinearSegmentedColormap, Normalize
 from tifffile import imread
 
 
@@ -70,24 +73,41 @@ def _stack_result_points(roi_map: Mapping[int, np.ndarray]) -> np.ndarray:
     return np.vstack(merged)
 
 
+def _trailing_index(name: str) -> Optional[int]:
+    """Return the integer at the end of `name` (e.g. 'foo_0012' -> 12), or None."""
+    match = re.search(r"(\d+)$", name)
+    return int(match.group(1)) if match else None
+
+
 def plot_batch_gs(
     res: Sequence[Mapping[int, np.ndarray]],
     names: Sequence[str],
     lifetime_points: Optional[Mapping[str, Tuple[float, float]]] = None,
-    palette: str = "tab10",
+    cmap: Union[str, Colormap, None] = None,
 ) -> None:
+    """Plot per-series G/S point clouds, colored by each name's trailing index.
+
+    `cmap` may be a matplotlib colormap or its name. Defaults to red -> blue.
+    """
     if len(res) != len(names):
         raise ValueError(
             f"Length mismatch: len(res)={len(res)} but len(names)={len(names)}."
         )
-
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.set_aspect("equal", adjustable="box")
 
     uc_x, uc_y = get_universal_circle()
     ax.plot(uc_x, uc_y, "k-", linewidth=1.2, label="Universal circle")
 
-    cmap = plt.get_cmap(palette, max(len(names), 1))
+    if cmap is None:
+        cmap = LinearSegmentedColormap.from_list("red_blue", ["red", "blue"])
+    elif isinstance(cmap, str):
+        cmap = plt.get_cmap(cmap)
+
+    indices = [_trailing_index(n) for n in names]
+    valid = [i for i in indices if i is not None]
+    norm = Normalize(vmin=min(valid), vmax=max(valid)) if valid else Normalize(0, 1)
+
     any_points = False
 
     for idx, (series_name, roi_map) in enumerate(zip(names, res)):
@@ -96,7 +116,8 @@ def plot_batch_gs(
             continue
 
         any_points = True
-        color = cmap(idx)
+        num = indices[idx]
+        color = cmap(norm(num)) if num is not None else "gray"
         g = points[:, 0]
         s = points[:, 1]
 
@@ -106,8 +127,8 @@ def plot_batch_gs(
             s=6,
             alpha=0.35,
             color=color,
+            edgecolor="black",
             linewidths=0,
-            label=series_name,
         )
 
         centroid = points.mean(axis=0)
@@ -132,25 +153,22 @@ def plot_batch_gs(
     ax.set_ylabel("S")
     ax.set_title("Batch ROI Phasor Plot")
 
-    handles, labels = ax.get_legend_handles_labels()
-    if handles:
-        legend = ax.legend(
-            handles,
-            labels,
-            bbox_to_anchor=(1.02, 1),
-            loc="upper left",
-            borderaxespad=0,
-        )
-        legend.set_title("Series")
+    # The per-series legend is replaced by a colorbar; keep just the circle entry.
+    ax.legend(loc="upper right")
+
+    if valid:
+        sm = ScalarMappable(norm=norm, cmap=cmap)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=ax, pad=0.02, fraction=0.04)
+        cbar.set_label("Series index")
 
     fig.tight_layout()
-    fig.subplots_adjust(right=0.78)
     plt.show()
 
 
 if __name__ == "__main__":
-    batch_data_path = "/home/edward/Documents/workspaces/research/projects/ast/data/20260515_live_elr_flim/tif/740ex"
-    cal_data_path = "/home/edward/Documents/workspaces/research/projects/ast/data/20260515_live_elr_flim/tif/cal_data/chroma_740ex_457-50em_20x_pockels_0p0_count_90_0000.tif"
+    batch_data_path = "/home/edward/Documents/workspaces/research/projects/ast/data/20260507_live_elr_flim/tif/stbl2_b"
+    cal_data_path = "/home/edward/Documents/workspaces/research/projects/ast/data/20260507_live_elr_flim/tif/chroma/chroma_740ex_457-50em_0000.tif"
     arrays, names = load_tif_dir(batch_data_path)
     res = phr.batch_segment_gs(arrays, imread(cal_data_path), 1.1, 12.5)
     plot_batch_gs(res, names)
