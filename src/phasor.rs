@@ -32,10 +32,7 @@ pub fn batch_segment_gs(
     calibration_data: ArrayView3<u16>,
     calibration_tau: f64,
     period: f64,
-    // axis: Option<usize>,
 ) -> Result<Vec<HashMap<u64, Array2<f64>>>, ImgalError> {
-    // TODO expose `axis` param
-    // calculate batch per roi G/S values
     let sd = StarDist2D::init_fluo(None, true).expect("Failed to initialize StarDist2D.");
     let batch_labels: Vec<Array2<u64>> = batch_data
         .iter()
@@ -59,7 +56,6 @@ pub fn batch_segment_gs(
             v.iter_mut().map(|(&k, v)| (k, v.view_mut())).collect();
         calibrate_gs_roi_mut(&mut view_map, mod_phs.0, mod_phs.1, Some(1))
     });
-    dbg!(batch_roi_gs.len());
     Ok(batch_roi_gs)
 }
 
