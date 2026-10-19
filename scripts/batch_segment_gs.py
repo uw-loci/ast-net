@@ -79,25 +79,46 @@ def _trailing_index(name: str) -> Optional[int]:
     return int(match.group(1)) if match else None
 
 
+def _draw_base(
+    ax: plt.Axes,
+    title: str,
+    lifetime_points: Optional[Mapping[str, Tuple[float, float]]],
+) -> None:
+    """Draw the universal circle, reference points, and axis labels on `ax`."""
+    ax.set_aspect("equal", adjustable="box")
+    uc_x, uc_y = get_universal_circle()
+    ax.plot(uc_x, uc_y, "k-", linewidth=1.2, label="Universal circle")
+
+    if lifetime_points:
+        for label, (x, y) in lifetime_points.items():
+            add_point_label(ax, label, x, y)
+
+    ax.set_xlabel("G")
+    ax.set_ylabel("S")
+    ax.set_title(title)
+
+
 def plot_batch_gs(
     res: Sequence[Mapping[int, np.ndarray]],
     names: Sequence[str],
     lifetime_points: Optional[Mapping[str, Tuple[float, float]]] = None,
     cmap: Union[str, Colormap, None] = None,
 ) -> None:
-    """Plot per-series G/S point clouds, colored by each name's trailing index.
+    """Plot per-series G/S data twice, colored by each name's trailing index.
 
+    Left: full point clouds plus centroids. Right: centroids only.
     `cmap` may be a matplotlib colormap or its name. Defaults to red -> blue.
     """
     if len(res) != len(names):
         raise ValueError(
             f"Length mismatch: len(res)={len(res)} but len(names)={len(names)}."
         )
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_aspect("equal", adjustable="box")
+    fig, (ax_all, ax_cent) = plt.subplots(
+        1, 2, figsize=(16, 6), constrained_layout=True
+    )
 
-    uc_x, uc_y = get_universal_circle()
-    ax.plot(uc_x, uc_y, "k-", linewidth=1.2, label="Universal circle")
+    _draw_base(ax_all, "Batch ROI Phasor Plot", lifetime_points)
+    _draw_base(ax_cent, "Batch ROI Centroids", lifetime_points)
 
     if cmap is None:
         cmap = LinearSegmentedColormap.from_list("red_blue", ["red", "blue"])
@@ -118,12 +139,10 @@ def plot_batch_gs(
         any_points = True
         num = indices[idx]
         color = cmap(norm(num)) if num is not None else "gray"
-        g = points[:, 0]
-        s = points[:, 1]
 
-        ax.scatter(
-            g,
-            s,
+        ax_all.scatter(
+            points[:, 0],
+            points[:, 1],
             s=6,
             alpha=0.35,
             color=color,
@@ -132,37 +151,34 @@ def plot_batch_gs(
         )
 
         centroid = points.mean(axis=0)
-        ax.scatter(
-            centroid[0],
-            centroid[1],
-            s=80,
-            marker="X",
-            color=color,
-            edgecolor="black",
-            linewidth=0.8,
-        )
+        for ax in (ax_all, ax_cent):
+            ax.scatter(
+                centroid[0],
+                centroid[1],
+                s=80,
+                marker="X",
+                color=color,
+                edgecolor="black",
+                linewidth=0.8,
+            )
 
     if not any_points:
         raise ValueError("No plottable G/S points found in `res`.")
 
-    if lifetime_points:
-        for label, (x, y) in lifetime_points.items():
-            add_point_label(ax, label, x, y)
-
-    ax.set_xlabel("G")
-    ax.set_ylabel("S")
-    ax.set_title("Batch ROI Phasor Plot")
+    # Give the centroid plot the same view as the full plot for easy comparison.
+    ax_cent.set_xlim(ax_all.get_xlim())
+    ax_cent.set_ylim(ax_all.get_ylim())
 
     # The per-series legend is replaced by a colorbar; keep just the circle entry.
-    ax.legend(loc="upper right")
+    ax_all.legend(loc="upper right")
+    ax_cent.legend(loc="upper right")
 
     if valid:
         sm = ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
-        cbar = fig.colorbar(sm, ax=ax, pad=0.02, fraction=0.04)
+        cbar = fig.colorbar(sm, ax=[ax_all, ax_cent], pad=0.02, fraction=0.03)
         cbar.set_label("Series index")
 
-    fig.tight_layout()
     plt.show()
 
 
